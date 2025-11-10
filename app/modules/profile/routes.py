@@ -3,7 +3,7 @@ from io import BytesIO
 
 import pyotp
 import qrcode
-from flask import flash, redirect, render_template, request, session, url_for
+from flask import flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import db

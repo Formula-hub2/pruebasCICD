@@ -118,6 +118,16 @@ function send_query() {
                                             <a href="/dataset/download/${dataset.id}" class="btn btn-outline-primary btn-sm" id="search" style="border-radius: 5px;">
                                                 Download (${dataset.total_size_in_human_format})
                                             </a>
+                                            <button 
+                                                class="btn btn-primary btn-sm btn-add-to-cart" 
+                                                data-dataset-id="${dataset.id}"
+                                                data-dataset-title="${dataset.title}"
+                                                id="add-btn-${dataset.id}"
+                                                style="border-radius: 5px;"
+                                            >
+                                                <i data-feather="plus-circle" class="center-button-icon"></i>
+                                                Add to my dataset
+                                            </button>
                                         </div>
 
 
@@ -128,6 +138,14 @@ function send_query() {
                         `;
 
                         document.getElementById('results').appendChild(card);
+
+                        // Conecta el Add to my datasets con el carrito
+                        const addBtnEl = document.getElementById(`add-btn-${dataset.id}`);
+                        if (addBtnEl) {
+                            addBtnEl.addEventListener('click', () => {
+                                addDatasetToSelection(dataset.id, dataset.title);
+                            });
+                        }
                     });
                 });
         });
@@ -156,6 +174,95 @@ function set_publication_type_as_query(publicationType) {
         }
     }
     publicationTypeSelect.dispatchEvent(new Event('input', {bubbles: true}));
+}
+
+// Seleccion de datasets (Carrito)
+const selectedDatasets = new Map(); // id -> title
+
+function updateSelectedDatasetsUI() {
+    const list = document.getElementById('selected-datasets-list');
+    const badge = document.getElementById('cart-count-badge');
+    const createBtn = document.getElementById('create-dataset-btn');
+    const hiddenInput = document.getElementById('selected-dataset-ids');
+    const sidebarBadge = document.getElementById('dataset-sidebar-count');
+
+    if (!list || !badge || !createBtn || !hiddenInput) return;
+
+    list.innerHTML = '';
+
+    if (selectedDatasets.size === 0) {
+        const empty = document.createElement('li');
+        empty.id = 'empty-cart-message';
+        empty.className = 'list-group-item text-muted text-center';
+        empty.textContent = 'No datasets selected yet.';
+        list.appendChild(empty);
+        createBtn.disabled = true;
+    } else {
+        selectedDatasets.forEach((title, id) => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.id = `selected-dataset-${id}`;
+
+            const span = document.createElement('span');
+            span.textContent = title;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn btn-sm btn-outline-danger';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', () => {
+                removeDatasetFromSelection(id);
+            });
+
+            li.appendChild(span);
+            li.appendChild(removeBtn);
+            list.appendChild(li);
+        });
+
+        createBtn.disabled = false;
+    }
+
+    badge.textContent = selectedDatasets.size;
+    if (sidebarBadge) sidebarBadge.textContent = selectedDatasets.size;
+    hiddenInput.value = Array.from(selectedDatasets.keys()).join(',');
+}
+
+function addDatasetToSelection(id, title) {
+    const key = String(id);
+    if (selectedDatasets.has(key)) {
+        // Si ya está añadido:
+        const existing = document.getElementById(`selected-dataset-${key}`);
+        if (existing) {
+            existing.classList.add('bg-warning');
+            setTimeout(() => existing.classList.remove('bg-warning'), 300);
+        }
+        return;
+    }
+
+    selectedDatasets.set(key, title);
+
+    const addBtn = document.getElementById(`add-btn-${key}`);
+    if (addBtn) {
+        addBtn.disabled = true;
+        addBtn.textContent = 'Added';
+    }
+
+    updateSelectedDatasetsUI();
+}
+
+function removeDatasetFromSelection(id) {
+    const key = String(id);
+    if (!selectedDatasets.has(key)) return;
+
+    selectedDatasets.delete(key);
+
+
+    const addBtn = document.getElementById(`add-btn-${key}`);
+    if (addBtn) {
+        addBtn.disabled = false;
+        addBtn.innerHTML = `<i data-feather="plus-circle" class="center-button-icon"></i> Add to my dataset`;
+    }
+
+    updateSelectedDatasetsUI();
 }
 
 document.getElementById('clear-filters').addEventListener('click', clearFilters);
@@ -202,4 +309,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const queryInput = document.getElementById('query');
         queryInput.dispatchEvent(new Event('input', {bubbles: true}));
     }
+
+    // Modal close/cancel: Oculta el modal y permanece en la misma página
+    function closeModalOnly() {
+        const modal = document.getElementById('create-dataset-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Modal open: Muestra el modal cuando se clickea el botón "Create my own dataset"
+    function openCreateDatasetModal() {
+        const modal = document.getElementById('create-dataset-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+
+    
+   
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const modalCancelBtn = document.getElementById('modal-cancel-btn-text');
+    const createDatasetBtn = document.getElementById('create-dataset-btn');
+
+    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModalOnly);
+    if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeModalOnly);
+    if (createDatasetBtn) createDatasetBtn.addEventListener('click', openCreateDatasetModal);
+
+    // EL carrito inicia sin datasets seleccionados
+    updateSelectedDatasetsUI();
 });

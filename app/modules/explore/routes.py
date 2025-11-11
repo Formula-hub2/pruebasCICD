@@ -1,4 +1,5 @@
 from flask import jsonify, render_template, request
+from flask_login import login_required, current_user
 
 from app.modules.explore import explore_bp
 from app.modules.explore.forms import ExploreForm

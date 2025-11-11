@@ -122,6 +122,14 @@ chico sundermann">
                     </li>
 
                     <li class="sidebar-item">
+                        <a class="sidebar-link" href="#" onclick="event.preventDefault(); return false;"> 
+                            <i class="align-middle" data-feather="shopping-cart"></i> 
+                            <span class="align-middle">My Dataset</span>
+                            <span id="dataset-sidebar-count" class="badge bg-primary ms-2 rounded-pill">0</span>
+                        </a>
+                    </li>
+
+                    <li class="sidebar-item">
                         <a class="sidebar-link" href="{{ url_for('auth.logout') }}">
                             <i class="align-middle" data-feather="log-out"></i> <span
                                 class="align-middle">Log out</span>

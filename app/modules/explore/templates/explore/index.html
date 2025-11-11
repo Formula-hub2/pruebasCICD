@@ -35,9 +35,11 @@
             </div>
         </div>
 
-        <div class="col-lg-5 fixed-column" id="filters">
+        <div class="col-lg-5 fixed-column" id="filters-and-cart">
 
-            {{ form.hidden_tag() }}
+            <div id="filters">
+
+                {{ form.hidden_tag() }}
 
             <div class="row">
 
@@ -141,12 +143,132 @@
             <div class="row">
 
             </div>
-
         </div>
 
+        <div id="my-selected-datasets-section" class="mt-4 mb-5 p-3 border rounded shadow-sm">
 
+            <h4 class="h4 mb-3">My Selected Datasets <span id="cart-count-badge" class="badge bg-primary ms-2 rounded-pill">0</span></h4>
+
+            <ul id="selected-datasets-list" class="list-group list-group-flush mb-3">
+                <li id="empty-cart-message" class="list-group-item text-muted text-center">
+                    No datasets selected yet.
+                </li>
+            </ul>
+
+            <button id="create-dataset-btn" class="btn btn-info w-100" disabled>
+                Create my own dataset
+            </button>
+
+        </div>
+        </div>
     </div>
 
+<div id="create-dataset-modal" class="modal" tabindex="-1" style="display: none;">  <!-- flex: visible -->
+    <div class="modal-dialog modal-md"><div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Dataset</h5>
+                <button type="button" class="btn-close btn-close-white" id="modal-close-btn"></button>
+            </div>
+            
+            <form id="create-dataset-form">
+                <div class="modal-body">
+                    
+                    <div class="mb-3 row">
+                        <label for="dataset-title" class="col-sm-4 col-form-label">Dataset Title</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="dataset-title" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label for="dataset-description" class="col-sm-4 col-form-label">Description</label>
+                        <div class="col-sm-8">
+                            <textarea class="form-control" id="dataset-description" rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row">
+                        <label for="dataset-tags" class="col-sm-4 col-form-label">Tags</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="dataset-tags">
+                        </div>
+                    </div>
+
+                    <div class="mb-3 row align-items-center">
+                        <label class="col-sm-4 col-form-label">Upload Files</label>
+                        <div class="col-sm-8 d-flex justify-content-end">
+                            <button type="button" class="btn btn-sm" style="background-color: #69a7d6; color: white;">Browse Files</button>
+                        </div>
+                        <input type="file" id="dataset-files" multiple style="display: none;"> 
+                    </div>
+
+                    <input type="hidden" id="selected-dataset-ids" name="selected_datasets">
+
+                </div>
+                
+                <div class="modal-footer d-block text-center p-4"> 
+                    
+                    <button type="submit" class="btn btn-primary btn-lg create-btn-custom-width">
+                        Create Dataset
+                    </button>
+                    
+                    <div class="mt-2 text-start">
+                        <span id="modal-cancel-btn-text" class="text-secondary fw-bold" 
+                            style="cursor: pointer;"
+                        >
+                            Cancel
+                        </span>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.modal {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5); 
+    display: none; 
+    justify-content: center;
+    align-items: center;
+    z-index: 1050; 
+    backdrop-filter: blur(5px);
+}
+
+.modal-dialog {
+    max-width: 600px;
+    width: 60% !important; 
+    margin: 1.75rem auto; 
+}
+
+.modal-content {
+    background-color: white;
+    padding: 0;
+    border-radius: 8px;
+    position: relative;
+}
+
+.modal-header{
+    background-color: #222e3a !important; 
+    border-bottom: none;
+}
+
+.modal-header .modal-title {
+    color: #FFFFFF !important;
+}
+
+.create-btn-custom-width {
+    width: 100% !important; 
+    max-width: 500px;
+}
+
+.btn-close-white {
+    filter: invert(1); 
+}
+
+</style>
 
 {% endblock %}
 

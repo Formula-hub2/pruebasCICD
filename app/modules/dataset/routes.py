@@ -276,9 +276,9 @@ def get_unsynchronized_dataset(dataset_id):
 def view_dataset(dataset_id):
     """Vista para datasets sin DOI (creados desde el carrito)"""
     dataset = dataset_service.get_or_404(dataset_id)
-    
+
     # Verificar que el dataset pertenezca al usuario o sea público
     if current_user.is_authenticated and dataset.user_id != current_user.id:
         abort(403)
-    
+
     return render_template("dataset/view_dataset.html", dataset=dataset)

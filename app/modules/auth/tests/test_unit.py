@@ -1,6 +1,6 @@
 import pyotp
 import pytest
-from flask import session, url_for
+from flask import url_for
 
 from app import db
 from app.modules.auth.repositories import UserRepository
@@ -115,9 +115,6 @@ def test_2fa_verify_flow(clean_database, test_client):
     user_repo = UserRepository()
     user = user_repo.get_by_email("2fa@example.com")
     assert user is not None
-
-    # Activar 2FA y generar secret
-    import pyotp
 
     secret = pyotp.random_base32()
     user.two_factor_secret = secret

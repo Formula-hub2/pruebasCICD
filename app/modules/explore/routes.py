@@ -1,12 +1,12 @@
-from flask import jsonify, render_template, request
-from flask_login import login_required, current_user
 import logging
 
+from flask import jsonify, render_template, request
+from flask_login import current_user, login_required
+
+from app.modules.dataset.services import DataSetService
 from app.modules.explore import explore_bp
 from app.modules.explore.forms import ExploreForm
 from app.modules.explore.services import ExploreService
-from app.modules.dataset.services import DataSetService
-from app.modules.dataset.forms import DataSetForm
 
 logger = logging.getLogger(__name__)
 
@@ -23,45 +23,41 @@ def index():
     if request.method == "POST":
         criteria = request.get_json()
         explore_service = ExploreService()
-        
+
         # Incluir datasets no sincronizados
         datasets = explore_service.filter(
-            query=criteria.get('query', ''),
-            sorting=criteria.get('sorting', 'newest'),
-            publication_type=criteria.get('publication_type', 'any'),
-            tags=criteria.get('tags', []),
-            include_unsynchronized=True 
+            query=criteria.get("query", ""),
+            sorting=criteria.get("sorting", "newest"),
+            publication_type=criteria.get("publication_type", "any"),
+            tags=criteria.get("tags", []),
+            include_unsynchronized=True,
         )
         return jsonify([dataset.to_dict() for dataset in datasets])
 
 
-@explore_bp.route('/explore/create-dataset-from-cart', methods=['POST'])
+@explore_bp.route("/explore/create-dataset-from-cart", methods=["POST"])
 @login_required
 def create_dataset_from_cart():
     try:
-        title = request.form.get('title')
-        description = request.form.get('description')
-        publication_type = request.form.get('publication_type') 
-        tags = request.form.get('tags')
-        selected_datasets = request.form.get('selected_datasets', '')
-        
+        title = request.form.get("title")
+        description = request.form.get("description")
+        publication_type = request.form.get("publication_type")
+        tags = request.form.get("tags")
+        selected_datasets = request.form.get("selected_datasets", "")
+
         # Convertir string de IDs a lista
-        source_dataset_ids = [int(id.strip()) for id in selected_datasets.split(',') if id.strip()]
-        
+        source_dataset_ids = [int(id.strip()) for id in selected_datasets.split(",") if id.strip()]
+
         created_dataset = dataset_service.create_combined_dataset(
             current_user=current_user,
             title=title,
             description=description,
             publication_type=publication_type,  # ← Pasar el publication_type
             tags=tags,
-            source_dataset_ids=source_dataset_ids
+            source_dataset_ids=source_dataset_ids,
         )
-        
-        return jsonify({
-            'success': True, 
-            'message': 'Dataset created successfully', 
-            'dataset_id': created_dataset.id
-        })
-        
+
+        return jsonify({"success": True, "message": "Dataset created successfully", "dataset_id": created_dataset.id})
+
     except Exception as e:
-        return jsonify({'success': False, 'message': f'Error creating dataset: {str(e)}'}), 500
+        return jsonify({"success": False, "message": f"Error creating dataset: {str(e)}"}), 500

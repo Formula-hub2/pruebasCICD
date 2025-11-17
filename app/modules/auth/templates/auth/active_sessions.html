@@ -1,0 +1,54 @@
+{% extends "base_template.html" %}
+
+{% block title %}Sesiones Activas{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="h3 mb-4"><b>Sesiones</b> Activas</h1>
+
+    {% if sessions %}
+        <div class="table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>ID Dispositivo</th>
+                        <th>IP</th>
+                        <th>Navegador</th>
+                        <th>Fecha de inicio</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sessions %}
+                        <tr>
+                            <td>{{ s.device_id if s.device_id else 'Desconocido' }}</td>
+                            <td>{{ s.ip_address }}</td>
+                            <td>{{ s.user_agent }}</td>
+                            <td>{{ s.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+
+                            <td class="text-end">
+                                {% if s.session_id == current_session_id %}
+                                    <span class="badge bg-success">Actual</span>
+                                {% else %}
+                                    <a href="{{ url_for('auth.terminate_session', session_id=s.session_id) }}"
+                                       class="btn btn-sm btn-danger">
+                                        Cerrar
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            No hay sesiones activas.
+        </div>
+    {% endif %}
+
+    <a href="{{ url_for('public.index') }}" class="btn btn-secondary mt-3">
+        Volver
+    </a>
+</div>
+{% endblock %}

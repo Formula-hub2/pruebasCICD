@@ -1,8 +1,10 @@
 import os
+import uuid
 
+from flask import request
 from flask_login import current_user, login_user
 
-from app.modules.auth.models import User
+from app.modules.auth.models import User, UserSession
 from app.modules.auth.repositories import UserRepository
 from app.modules.profile.models import UserProfile
 from app.modules.profile.repositories import UserProfileRepository
@@ -86,3 +88,36 @@ class AuthenticationService(BaseService):
 
     def verify_password(self, user: User, password: str) -> bool:
         return user.check_password(password)
+
+    # --- Métodos de sesiones activas ---
+    def create_user_session(self, user: User):
+        """Crea una nueva sesión activa para el usuario."""
+        session_id = str(uuid.uuid4())
+        user_session = UserSession(
+            user_id=user.id,
+            session_id=session_id,
+            user_agent=request.headers.get("User-Agent"),
+            ip_address=request.remote_addr,
+            device_id=request.cookies.get("device_id"),
+        )
+        self.repository.session.add(user_session)
+        self.repository.session.commit()
+        return user_session
+
+    def get_active_sessions(self, user: User):
+        """Devuelve todas las sesiones activas del usuario."""
+        return UserSession.query.filter_by(user_id=user.id).all()
+
+    def terminate_session(self, session_id: str):
+        """Elimina una sesión activa específica."""
+        session_obj = UserSession.query.filter_by(session_id=session_id).first()
+        if session_obj:
+            self.repository.session.delete(session_obj)
+            self.repository.session.commit()
+            return True
+        return False
+
+    def terminate_all_other_sessions(self, user: User, current_session_id: str):
+        """Elimina todas las sesiones del usuario excepto la actual."""
+        UserSession.query.filter(UserSession.user_id == user.id, UserSession.session_id != current_session_id).delete()
+        self.repository.session.commit()

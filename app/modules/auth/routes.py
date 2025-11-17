@@ -47,8 +47,23 @@ def login():
                 session["two_factor_user_id"] = user.id
                 logout_user()
                 return redirect(url_for("auth.verify_2fa"))
+            ################################################
+            device_id = request.cookies.get("device_id")
+            if not device_id:
+                import uuid
+
+                device_id = str(uuid.uuid4())
+            ###############################################
             login_user(user, remember=True)
-            return redirect(url_for("public.index"))
+            # --- Crear registro de sesión ---
+            user_session = authentication_service.create_user_session(user)
+            session["session_id"] = user_session.session_id
+            # return redirect(url_for("public.index"))
+            from flask import make_response
+
+            resp = make_response(redirect(url_for("public.index")))
+            resp.set_cookie("device_id", device_id, max_age=60 * 60 * 24 * 365 * 2, httponly=True, secure=True)
+            return resp
 
         return render_template("auth/login_form.html", form=form, error="Invalid credentials")
 
@@ -68,6 +83,9 @@ def verify_2fa():
         token = request.form.get("token")
         if user.verify_totp(token):
             login_user(user, remember=True)
+            # --- Crear registro de sesión ---
+            user_session = authentication_service.create_user_session(user)
+            session["session_id"] = user_session.session_id
             session.pop("two_factor_user_id", None)
             return redirect(url_for("public.index"))
         flash("Código 2FA inválido")
@@ -77,5 +95,41 @@ def verify_2fa():
 
 @auth_bp.route("/logout")
 def logout():
+    # --- Crear registro de sesión ---
+    if current_user.is_authenticated:
+        current_session_id = session.get("session_id")
+        if current_session_id:
+            authentication_service.terminate_session(current_session_id)
+
+    session.pop("session_id", None)
     logout_user()
     return redirect(url_for("public.index"))
+
+
+# --- Rutas de sesiones activas ---
+@auth_bp.route("/active_sessions")
+def sesiones_activas():
+    if not current_user.is_authenticated:
+        return "No estás logueado", 401
+
+    sessions = authentication_service.get_active_sessions(current_user)
+    current_session_id = session.get("session_id")  # ID de la sesión actual
+    return render_template("auth/active_sessions.html", sessions=sessions, current_session_id=current_session_id)
+
+
+# --- Método para active sessions ---
+@auth_bp.route("/terminate_session/<session_id>")
+def terminate_session(session_id):
+    if not current_user.is_authenticated:
+        return redirect(url_for("auth.login"))
+
+    current_session_id = session.get("session_id")
+
+    # Evitar cerrar la sesión actual desde el enlace (opcional)
+    if session_id == current_session_id:
+        flash("No puedes cerrar la sesión actual desde aquí.")
+        return redirect(url_for("auth.sesiones_activas"))
+
+    authentication_service.terminate_session(session_id)
+    flash("Sesión cerrada correctamente.")
+    return redirect(url_for("auth.sesiones_activas"))

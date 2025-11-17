@@ -121,6 +121,13 @@ chico sundermann">
                         </a>
                     </li>
 
+                    <li class="sidebar-item {{ 'active' if request.endpoint == 'auth.sesiones_activas' else '' }}">
+                        <a class="sidebar-link" href="{{ url_for('auth.sesiones_activas') }}">
+                            <i class="align-middle" data-feather="monitor"></i>
+                            <span class="align-middle">Active sessions</span>
+                        </a>
+                    </li>
+
                     <li class="sidebar-item">
                         <a class="sidebar-link" href="#" onclick="event.preventDefault(); return false;"> 
                             <i class="align-middle" data-feather="shopping-cart"></i> 

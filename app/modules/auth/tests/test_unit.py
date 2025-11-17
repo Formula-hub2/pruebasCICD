@@ -135,3 +135,85 @@ def test_2fa_verify_flow(clean_database, test_client):
     # Verificar que la sesión quedó limpia
     with test_client.session_transaction() as sess:
         assert "two_factor_user_id" not in sess
+
+
+# --- Tests de sesiones activas ---
+def test_create_user_session(clean_database, mocker):
+    """Verifica que se pueda crear una sesión activa para un usuario."""
+    service = AuthenticationService()
+    user = service.create_with_profile(name="John", surname="Doe", email="john@example.com", password="1234")
+    mock_request = mocker.MagicMock()
+    mock_request.headers.get.return_value = "pytest-agent"
+    mock_request.remote_addr = "127.0.0.1"
+    mocker.patch("app.modules.auth.services.request", mock_request)
+
+    session = service.create_user_session(user)
+
+    assert session.user_id == user.id
+    assert session.user_agent == "pytest-agent"
+    assert session.ip_address == "127.0.0.1"
+    assert session.session_id is not None
+
+
+def test_get_active_sessions(clean_database, mocker):
+    """Verifica que se obtengan las sesiones activas correctamente."""
+    service = AuthenticationService()
+    user = service.create_with_profile(name="Alice", surname="Smith", email="alice@example.com", password="abcd")
+
+    # Primer dispositivo
+    mock_request1 = mocker.MagicMock()
+    mock_request1.headers.get.return_value = "pytest-agent-1"
+    mock_request1.remote_addr = "127.0.0.1"
+    mocker.patch("app.modules.auth.services.request", mock_request1)
+    session1 = service.create_user_session(user)
+
+    # Segundo dispositivo
+    mock_request2 = mocker.MagicMock()
+    mock_request2.headers.get.return_value = "pytest-agent-2"
+    mock_request2.remote_addr = "127.0.0.2"
+    mocker.patch("app.modules.auth.services.request", mock_request2)
+    session2 = service.create_user_session(user)
+
+    sessions = service.get_active_sessions(user)
+    assert len(sessions) == 2
+    assert session1 in sessions and session2 in sessions
+
+
+def test_terminate_session(clean_database, mocker):
+    """Verifica que se pueda eliminar una sesión activa específica."""
+    service = AuthenticationService()
+    user = service.create_with_profile(name="Bob", surname="Marley", email="bob@example.com", password="xyz")
+
+    mock_request = mocker.MagicMock()
+    mock_request.headers.get.return_value = "pytest-agent"
+    mock_request.remote_addr = "127.0.0.1"
+    mocker.patch("app.modules.auth.services.request", mock_request)
+
+    session = service.create_user_session(user)
+    session_id = session.session_id
+
+    assert service.terminate_session(session_id) is True
+
+    sessions = service.get_active_sessions(user)
+    assert len(sessions) == 0
+
+
+def test_terminate_all_other_sessions(clean_database, mocker):
+    """Verifica que se eliminen todas las sesiones excepto la actual."""
+    service = AuthenticationService()
+    user = service.create_with_profile(name="Jane", surname="Roe", email="jane@example.com", password="abcd")
+
+    mock_request = mocker.MagicMock()
+    mock_request.headers.get.return_value = "pytest-agent"
+    mock_request.remote_addr = "127.0.0.1"
+    mocker.patch("app.modules.auth.services.request", mock_request)
+
+    # session1 = service.create_user_session(user)
+    session2 = service.create_user_session(user)
+    # session3 = service.create_user_session(user)
+
+    service.terminate_all_other_sessions(user, current_session_id=session2.session_id)
+
+    sessions = service.get_active_sessions(user)
+    assert len(sessions) == 1
+    assert sessions[0].session_id == session2.session_id

@@ -33,7 +33,7 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         with:
-          args: '🚀 **Formula Hub Desplegado!** La nueva versión en `main` se ha enviado a Render correctamente.'
+          args: '🚀 **UVLHub Desplegado!** La nueva versión en `main` se ha enviado a Render correctamente.'
 
       # 3. Notificar FALLO a Discord (Opcional pero recomendado)
       - name: Discord Notification - Failure

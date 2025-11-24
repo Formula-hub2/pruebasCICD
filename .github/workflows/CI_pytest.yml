@@ -9,7 +9,7 @@ name: Pytest
 
 on:
   push:
-    branches: [trunk]
+    branches: [trunk, main]
 
 jobs:
   pytest:
@@ -71,4 +71,13 @@ jobs:
 
       # Step 5: Run the pytest test suite (ignoring Selenium tests)
       - name: Run Tests
-        run: pytest app/modules/ --ignore-glob='*selenium*'
+        # Genera el archivo coverage.xml
+        run: pytest --cov=app --cov-report=xml app/modules/ --ignore-glob='*selenium*'
+
+      - name: Upload Coverage Artifact
+        # Solo subimos el artefacto de una versión para no duplicar
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml

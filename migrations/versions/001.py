@@ -168,6 +168,27 @@ def upgrade():
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('notepad',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=256), nullable=False),
+    sa.Column('body', sa.Text(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('user_session',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('session_id', sa.String(length=256), nullable=False),
+    sa.Column('user_agent', sa.String(length=512), nullable=True),
+    sa.Column('ip_address', sa.String(length=45), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('last_activity', sa.DateTime(), nullable=False),
+    sa.Column('device_id', sa.String(length=256), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('session_id')
+    )
     # ### end Alembic commands ###
 
 
@@ -185,9 +206,11 @@ def downgrade():
     op.drop_table('fm_meta_data')
     op.drop_table('ds_meta_data')
     op.drop_table('zenodo')
-    # op.drop_table('webhook')
+    op.drop_table('webhook')
     op.drop_table('user')
     op.drop_table('fm_metrics')
     op.drop_table('ds_metrics')
     op.drop_table('doi_mapping')
+    op.drop_table('user_session')
+    op.drop_table('notepad')
     # ### end Alembic commands ###

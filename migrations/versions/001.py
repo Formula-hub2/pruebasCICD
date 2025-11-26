@@ -108,14 +108,19 @@ def upgrade():
     sa.Column('ds_meta_data_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('download_count', sa.Integer(), nullable=False, default = 0, server_default='0'),
-    sa.Column('dataset_type', sa.String(length=50), server_default='uvl_dataset', nullable=False),
+    sa.Column('dataset_type', sa.String(length=50), nullable=False, server_default='uvl_dataset'),
     sa.ForeignKeyConstraint(['ds_meta_data_id'], ['ds_meta_data.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('uvl_dataset',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['id'], ['data_set.id'], ),
+    sa.ForeignKeyConstraint(['id'], ['data_set.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('raw_dataset',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['id'], ['data_set.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('ds_download_record',
@@ -207,6 +212,7 @@ def downgrade():
     op.drop_table('feature_model')
     op.drop_table('ds_view_record')
     op.drop_table('ds_download_record')
+    op.drop_table('raw_dataset') # IMPORTANTE: Borrar hijo antes que padre
     op.drop_table('uvl_dataset') # IMPORTANTE: Borrar hijo antes que padre
     op.drop_table('data_set')
     op.drop_table('author')

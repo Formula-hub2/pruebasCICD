@@ -64,29 +64,23 @@ class DSMetaData(db.Model):
     authors = db.relationship("Author", backref="ds_meta_data", lazy=True, cascade="all, delete")
 
 
+# ==========================================
+# CLASE PADRE: DataSet (Genérico)
+# ==========================================
 class DataSet(db.Model):
-    """
-    Clase PADRE (Base).
-    Contiene la información común a todos los tipos de datasets (Genómicos, UVL, Imágenes, etc.)
-    Usa 'Joined Table Inheritance'.
-    """
-
     __tablename__ = "data_set"
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     ds_meta_data_id = db.Column(db.Integer, db.ForeignKey("ds_meta_data.id"), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
-    # El contador que implementamos antes (común para todos)
-    download_count = db.Column(db.Integer, default=0, nullable=False)
+    download_count = db.Column(db.Integer, nullable=False, default=0, server_default='0')
 
     # --- POLIMORFISMO ---
-    dataset_type = db.Column(db.String(50))  # Columna discriminadora
+    dataset_type = db.Column(db.String(50))  # Esta columna decide si es UVL, Imagen, etc.
 
     __mapper_args__ = {"polymorphic_identity": "generic_dataset", "polymorphic_on": dataset_type}
 
-    # Relaciones comunes
     ds_meta_data = db.relationship("DSMetaData", backref=db.backref("data_set", uselist=False))
 
     def name(self):
@@ -107,10 +101,7 @@ class DataSet(db.Model):
 
         return DataSetService().get_uvlhub_doi(self)
 
-    # --- MÉTODOS ABSTRACTOS / BASE ---
-    # Estos métodos deben ser sobreescritos por las clases hijas (UVLDataSet, ImageDataSet, etc.)
-    # Devolvemos 0 o lista vacía por defecto para no romper la interfaz si se instancia un genérico.
-
+    # --- Métodos que las hijas deben sobreescribir ---
     def files(self):
         return []
 
@@ -125,8 +116,11 @@ class DataSet(db.Model):
 
         return SizeService().get_human_readable_size(self.get_file_total_size())
 
+    def get_dashboard_template(self):
+        """Devuelve el HTML parcial para pintar los detalles específicos"""
+        return "dataset/types/generic_details.html"
+
     def to_dict(self):
-        """Serialización base común"""
         return {
             "title": self.ds_meta_data.title,
             "id": self.id,
@@ -142,33 +136,28 @@ class DataSet(db.Model):
             "download": f'{request.host_url.rstrip("/")}/dataset/download/{self.id}',
             "zenodo": self.get_zenodo_url(),
             "download_count": self.download_count,
-            "dataset_type": self.dataset_type,  # Para que el frontend sepa qué pintar
+            "dataset_type": self.dataset_type,
         }
 
     def __repr__(self):
         return f"DataSet<{self.id}>"
 
 
+# ==========================================
+# CLASE HIJA: UVLDataSet (Específico)
+# ==========================================
 class UVLDataSet(DataSet):
-    """
-    Clase HIJA específica para UVL.
-    Hereda de DataSet y añade la relación con FeatureModels.
-    """
-
     __tablename__ = "uvl_dataset"
 
-    # La PK es también FK al padre
+    # Clave foránea a la tabla padre
     id = db.Column(db.Integer, db.ForeignKey("data_set.id"), primary_key=True)
 
-    # Relación específica de UVL (movida desde DataSet)
-    # Nota: backref="uvl_dataset" permite acceder desde FeatureModel al dataset tipado
+    # Relación específica que SOLO tienen los UVL
     feature_models = db.relationship("FeatureModel", backref="uvl_dataset", lazy=True, cascade="all, delete")
 
     __mapper_args__ = {
         "polymorphic_identity": "uvl_dataset",
     }
-
-    # --- Implementación específica de los métodos abstractos ---
 
     def files(self):
         return [file for fm in self.feature_models for file in fm.files]
@@ -179,10 +168,11 @@ class UVLDataSet(DataSet):
     def get_file_total_size(self):
         return sum(file.size for fm in self.feature_models for file in fm.files)
 
+    def get_dashboard_template(self):
+        return "dataset/types/uvl_details.html"
+
     def to_dict(self):
-        # Obtenemos el dict base
         data = super().to_dict()
-        # Inyectamos los datos específicos de UVL
         data.update(
             {
                 "files": [file.to_dict() for fm in self.feature_models for file in fm.files],
@@ -194,20 +184,21 @@ class UVLDataSet(DataSet):
         return data
 
 
+class RawDataSet(DataSet):
+    __tablename__ = "raw_dataset"
+    id = db.Column(db.Integer, db.ForeignKey("data_set.id"), primary_key=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "raw_dataset",
+    }
+
+
 class DSDownloadRecord(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     dataset_id = db.Column(db.Integer, db.ForeignKey("data_set.id"))
     download_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    download_cookie = db.Column(db.String(36), nullable=False)  # Assuming UUID4 strings
-
-    def __repr__(self):
-        return (
-            f"<Download id={self.id} "
-            f"dataset_id={self.dataset_id} "
-            f"date={self.download_date} "
-            f"cookie={self.download_cookie}>"
-        )
+    download_cookie = db.Column(db.String(36), nullable=False)
 
 
 class DSViewRecord(db.Model):
@@ -215,10 +206,7 @@ class DSViewRecord(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     dataset_id = db.Column(db.Integer, db.ForeignKey("data_set.id"))
     view_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    view_cookie = db.Column(db.String(36), nullable=False)  # Assuming UUID4 strings
-
-    def __repr__(self):
-        return f"<View id={self.id} dataset_id={self.dataset_id} date={self.view_date} cookie={self.view_cookie}>"
+    view_cookie = db.Column(db.String(36), nullable=False)
 
 
 class DOIMapping(db.Model):

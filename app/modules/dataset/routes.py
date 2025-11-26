@@ -21,9 +21,8 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.modules.dataset import dataset_bp
-from app.modules.dataset.forms import DataSetForm
+from app.modules.dataset.forms import DataSetForm, RawDataSetForm
 from app.modules.dataset.models import DataSet, DSDownloadRecord
-from app.modules.dataset.services import UVLDataSetService  # <--- NUEVO SERVICIO ESPECÍFICO
 from app.modules.dataset.services import (
     AuthorService,
     DataSetService,
@@ -31,6 +30,8 @@ from app.modules.dataset.services import (
     DSDownloadRecordService,
     DSMetaDataService,
     DSViewRecordService,
+    RawDataSetService,
+    UVLDataSetService,
 )
 from app.modules.zenodo.services import ZenodoService
 
@@ -59,11 +60,12 @@ def create_dataset(dataset_type):
         service = UVLDataSetService()
         form = DataSetForm()
         template = "dataset/upload_dataset.html"
-    # Aquí añadirás tus futuros tipos:
-    # elif dataset_type == "cnf":
-    #     service = CNFDataSetService()
-    #     form = CNFDataSetForm()
-    #     template = "dataset/upload_cnf.html"
+
+    elif dataset_type == "raw":
+        service = RawDataSetService()
+        form = RawDataSetForm()
+        template = "dataset/upload_raw.html"
+
     else:
         return abort(404, description=f"Dataset type '{dataset_type}' not supported yet.")
 
@@ -81,8 +83,9 @@ def create_dataset(dataset_type):
 
             logger.info(f"Created dataset: {dataset}")
 
-            # Lógica específica de movimiento de ficheros (Delegada en el servicio)
-            service.move_feature_models(dataset)
+            # Lógica específica de movimiento de ficheros (Solo para UVL por ahora)
+            if dataset_type == "uvl":
+                service.move_feature_models(dataset)
 
         except Exception as exc:
             logger.exception(f"Exception while create dataset data in local {exc}")
@@ -90,6 +93,7 @@ def create_dataset(dataset_type):
 
         # 3. SINCRONIZACIÓN ZENODO (Lógica Común)
         # Nota: Esto asume que Zenodo acepta cualquier tipo de fichero que subamos.
+        # Si el dataset es 'raw' y no tiene ficheros aún, esto subirá solo metadatos.
         data = {}
         try:
             zenodo_response_json = zenodo_service.create_new_deposition(dataset)
@@ -107,10 +111,9 @@ def create_dataset(dataset_type):
             dataset_service.update_dsmetadata(dataset.ds_meta_data_id, deposition_id=deposition_id)
 
             try:
-                # Iterar por los feature models.
-                # OJO: Si en el futuro hay datasets sin feature models, esto habrá que abstraerlo.
-                # Por ahora, como UVL es el único, funciona.
-                # Para el futuro: dataset.get_files_to_upload()
+                # Subida de ficheros a Zenodo
+                # Si es UVL, subimos los feature models.
+                # Si es Raw, en el futuro habrá que implementar su lógica de subida de ficheros.
                 if hasattr(dataset, "feature_models"):
                     for feature_model in dataset.feature_models:
                         zenodo_service.upload_file(dataset, deposition_id, feature_model)
@@ -125,7 +128,7 @@ def create_dataset(dataset_type):
                 msg = f"it has not been possible upload feature models in Zenodo and update the DOI: {e}"
                 return jsonify({"message": msg}), 200
 
-        # Delete temp folder
+        # Delete temp folder (Limpieza)
         file_path = current_user.temp_folder()
         if os.path.exists(file_path) and os.path.isdir(file_path):
             shutil.rmtree(file_path)
@@ -152,8 +155,7 @@ def list_dataset():
 def upload():
     """
     Esta ruta maneja la subida asíncrona (Dropzone) a la carpeta temporal.
-    Por ahora sigue validando .uvl hardcoded.
-    TODO: En el futuro, recibir un parámetro 'type' para validar la extensión dinámicamente.
+    Actualmente está configurada para UVL.
     """
     file = request.files["file"]
     temp_folder = current_user.temp_folder()
@@ -210,7 +212,7 @@ def delete():
 
 @dataset_bp.route("/dataset/download/<int:dataset_id>", methods=["GET"])
 def download_dataset(dataset_id):
-    # Usamos get_or_404 genérico. SQLalchemy nos devolverá la instancia hija correcta (UVLDataSet)
+    # Usamos get_or_404 genérico. SQLalchemy nos devolverá la instancia hija correcta (UVLDataSet o RawDataSet)
     dataset = dataset_service.get_or_404(dataset_id)
 
     # Lógica de contador (Común)
@@ -221,6 +223,12 @@ def download_dataset(dataset_id):
 
     temp_dir = tempfile.mkdtemp()
     zip_path = os.path.join(temp_dir, f"dataset_{dataset_id}.zip")
+
+    # Generación de ZIP
+    # Nota: Si es un RawDataSet y no tiene ficheros aún, esto generará un zip vacío o fallará si la carpeta no existe.
+    # Se recomienda asegurar que la carpeta exista.
+    if not os.path.exists(file_path):
+        os.makedirs(file_path, exist_ok=True)
 
     with ZipFile(zip_path, "w") as zipf:
         for subdir, dirs, files in os.walk(file_path):

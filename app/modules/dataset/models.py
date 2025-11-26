@@ -74,7 +74,7 @@ class DataSet(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     ds_meta_data_id = db.Column(db.Integer, db.ForeignKey("ds_meta_data.id"), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    download_count = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    download_count = db.Column(db.Integer, nullable=False, default=0, server_default="0")
 
     # --- POLIMORFISMO ---
     dataset_type = db.Column(db.String(50))  # Esta columna decide si es UVL, Imagen, etc.

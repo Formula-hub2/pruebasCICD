@@ -134,3 +134,62 @@ def test_upload_dataset():
 
 # Call the test function
 test_upload_dataset()
+
+
+def test_download_counter_increment():
+    driver = initialize_driver()
+
+    try:
+        host = get_host_for_selenium_testing()
+
+        # 1. Login
+        driver.get(f"{host}/login")
+        wait_for_page_to_load(driver)
+        driver.find_element(By.NAME, "email").send_keys("user1@example.com")
+        driver.find_element(By.NAME, "password").send_keys("1234")
+        driver.find_element(By.NAME, "password").send_keys(Keys.RETURN)
+        time.sleep(2)
+        wait_for_page_to_load(driver)
+
+        # 2. Ir a la lista y click en el primer dataset
+        driver.get(f"{host}/dataset/list")
+        wait_for_page_to_load(driver)
+        
+        # Click en el ojo (View)
+        try:
+            view_buttons = driver.find_elements(By.XPATH, "//a[.//i[@data-feather='eye']]")
+            if not view_buttons:
+                raise Exception("No datasets found. Run test_upload_dataset first.")
+            view_buttons[0].click()
+            wait_for_page_to_load(driver)
+        except Exception as e:
+            print(f"Error navigating: {e}")
+            return
+
+        # 3. Guardar contador inicial
+        try:
+            initial_count = int(driver.find_element(By.ID, "download_count_text").text.strip())
+        except:
+            assert False, "Falta el ID 'download_count_text' en el HTML."
+
+        # 4. Descargar
+        driver.find_element(By.ID, "download_btn").click()
+        time.sleep(1) # Esperar al JS
+
+        # 5. Verificar JS (Frontend)
+        new_count = int(driver.find_element(By.ID, "download_count_text").text.strip())
+        assert new_count == initial_count + 1, "El contador JS no subió."
+
+        # 6. Verificar BD (Backend)
+        driver.refresh()
+        wait_for_page_to_load(driver)
+        db_count = int(driver.find_element(By.ID, "download_count_text").text.strip())
+        assert db_count == initial_count + 1, "El contador no se guardó en BD."
+
+        print("Test passed: Download Counter works!")
+
+    finally:
+        close_driver(driver)
+
+# Ejecuta el test
+test_download_counter_increment()

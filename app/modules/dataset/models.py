@@ -65,22 +65,32 @@ class DSMetaData(db.Model):
 
 
 class DataSet(db.Model):
+    """
+    Clase PADRE (Base).
+    Contiene la información común a todos los tipos de datasets (Genómicos, UVL, Imágenes, etc.)
+    Usa 'Joined Table Inheritance'.
+    """
+
+    __tablename__ = "data_set"
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-
     ds_meta_data_id = db.Column(db.Integer, db.ForeignKey("ds_meta_data.id"), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    ds_meta_data = db.relationship("DSMetaData", backref=db.backref("data_set", uselist=False))
-    feature_models = db.relationship("FeatureModel", backref="data_set", lazy=True, cascade="all, delete")
-
+    # El contador que implementamos antes (común para todos)
     download_count = db.Column(db.Integer, default=0, nullable=False)
+
+    # --- POLIMORFISMO ---
+    dataset_type = db.Column(db.String(50))  # Columna discriminadora
+
+    __mapper_args__ = {"polymorphic_identity": "generic_dataset", "polymorphic_on": dataset_type}
+
+    # Relaciones comunes
+    ds_meta_data = db.relationship("DSMetaData", backref=db.backref("data_set", uselist=False))
 
     def name(self):
         return self.ds_meta_data.title
-
-    def files(self):
-        return [file for fm in self.feature_models for file in fm.files]
 
     def delete(self):
         db.session.delete(self)
@@ -92,23 +102,31 @@ class DataSet(db.Model):
     def get_zenodo_url(self):
         return f"https://zenodo.org/record/{self.ds_meta_data.deposition_id}" if self.ds_meta_data.dataset_doi else None
 
+    def get_uvlhub_doi(self):
+        from app.modules.dataset.services import DataSetService
+
+        return DataSetService().get_uvlhub_doi(self)
+
+    # --- MÉTODOS ABSTRACTOS / BASE ---
+    # Estos métodos deben ser sobreescritos por las clases hijas (UVLDataSet, ImageDataSet, etc.)
+    # Devolvemos 0 o lista vacía por defecto para no romper la interfaz si se instancia un genérico.
+
+    def files(self):
+        return []
+
     def get_files_count(self):
-        return sum(len(fm.files) for fm in self.feature_models)
+        return 0
 
     def get_file_total_size(self):
-        return sum(file.size for fm in self.feature_models for file in fm.files)
+        return 0
 
     def get_file_total_size_for_human(self):
         from app.modules.dataset.services import SizeService
 
         return SizeService().get_human_readable_size(self.get_file_total_size())
 
-    def get_uvlhub_doi(self):
-        from app.modules.dataset.services import DataSetService
-
-        return DataSetService().get_uvlhub_doi(self)
-
     def to_dict(self):
+        """Serialización base común"""
         return {
             "title": self.ds_meta_data.title,
             "id": self.id,
@@ -123,15 +141,57 @@ class DataSet(db.Model):
             "url": self.get_uvlhub_doi() if self.ds_meta_data.dataset_doi else f"/dataset/view/{self.id}",
             "download": f'{request.host_url.rstrip("/")}/dataset/download/{self.id}',
             "zenodo": self.get_zenodo_url(),
-            "files": [file.to_dict() for fm in self.feature_models for file in fm.files],
-            "files_count": self.get_files_count(),
-            "total_size_in_bytes": self.get_file_total_size(),
-            "total_size_in_human_format": self.get_file_total_size_for_human(),
             "download_count": self.download_count,
+            "dataset_type": self.dataset_type,  # Para que el frontend sepa qué pintar
         }
 
     def __repr__(self):
         return f"DataSet<{self.id}>"
+
+
+class UVLDataSet(DataSet):
+    """
+    Clase HIJA específica para UVL.
+    Hereda de DataSet y añade la relación con FeatureModels.
+    """
+
+    __tablename__ = "uvl_dataset"
+
+    # La PK es también FK al padre
+    id = db.Column(db.Integer, db.ForeignKey("data_set.id"), primary_key=True)
+
+    # Relación específica de UVL (movida desde DataSet)
+    # Nota: backref="uvl_dataset" permite acceder desde FeatureModel al dataset tipado
+    feature_models = db.relationship("FeatureModel", backref="uvl_dataset", lazy=True, cascade="all, delete")
+
+    __mapper_args__ = {
+        "polymorphic_identity": "uvl_dataset",
+    }
+
+    # --- Implementación específica de los métodos abstractos ---
+
+    def files(self):
+        return [file for fm in self.feature_models for file in fm.files]
+
+    def get_files_count(self):
+        return sum(len(fm.files) for fm in self.feature_models)
+
+    def get_file_total_size(self):
+        return sum(file.size for fm in self.feature_models for file in fm.files)
+
+    def to_dict(self):
+        # Obtenemos el dict base
+        data = super().to_dict()
+        # Inyectamos los datos específicos de UVL
+        data.update(
+            {
+                "files": [file.to_dict() for fm in self.feature_models for file in fm.files],
+                "files_count": self.get_files_count(),
+                "total_size_in_bytes": self.get_file_total_size(),
+                "total_size_in_human_format": self.get_file_total_size_for_human(),
+            }
+        )
+        return data
 
 
 class DSDownloadRecord(db.Model):

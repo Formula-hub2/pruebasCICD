@@ -88,7 +88,10 @@ def test_full_lifecycle():
         # Subir Archivo 1
         dropzone_input = driver.find_element(By.CLASS_NAME, "dz-hidden-input")
         driver.execute_script(
-            "arguments[0].style.visibility = 'visible'; arguments[0].style.height = '1px'; arguments[0].style.width = '1px'; arguments[0].style.opacity = 1",
+            "arguments[0].style.visibility = 'visible'; "
+            "arguments[0].style.height = '1px'; "
+            "arguments[0].style.width = '1px'; "
+            "arguments[0].style.opacity = 1",
             dropzone_input,
         )
         dropzone_input.send_keys(file1_path)
@@ -97,7 +100,10 @@ def test_full_lifecycle():
         # Subir Archivo 2 (RE-QUERY IMPORTANTE)
         dropzone_input = driver.find_element(By.CLASS_NAME, "dz-hidden-input")
         driver.execute_script(
-            "arguments[0].style.visibility = 'visible'; arguments[0].style.height = '1px'; arguments[0].style.width = '1px'; arguments[0].style.opacity = 1",
+            "arguments[0].style.visibility = 'visible'; "
+            "arguments[0].style.height = '1px'; "
+            "arguments[0].style.width = '1px'; "
+            "arguments[0].style.opacity = 1",
             dropzone_input,
         )
         dropzone_input.send_keys(file2_path)
@@ -155,7 +161,7 @@ def test_full_lifecycle():
             initial_count_elem = wait.until(EC.visibility_of_element_located((By.ID, "download_count_text")))
             initial_count = int(initial_count_elem.text.strip())
             print(f"   -> Contador inicial: {initial_count}")
-        except:
+        except Exception:
             raise Exception("No encuentro el ID 'download_count_text'. Revisa view_dataset.html")
 
         # 2. Pulsar botón descarga

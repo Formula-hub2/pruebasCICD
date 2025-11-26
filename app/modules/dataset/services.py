@@ -8,7 +8,7 @@ from typing import Optional
 from flask import request
 
 from app.modules.auth.services import AuthenticationService
-from app.modules.dataset.models import DataSet, DSMetaData, DSViewRecord, PublicationType
+from app.modules.dataset.models import DataSet, DSMetaData, DSViewRecord, PublicationType, UVLDataSet
 from app.modules.dataset.repositories import (
     AuthorRepository,
     DataSetRepository,
@@ -19,10 +19,9 @@ from app.modules.dataset.repositories import (
 )
 from app.modules.featuremodel.repositories import FeatureModelRepository, FMMetaDataRepository
 from app.modules.hubfile.repositories import (
-    HubfileDownloadRecordRepository,
     HubfileRepository,
-    HubfileViewRecordRepository,
 )
+from core.repositories.BaseRepository import BaseRepository  # Necesario para instanciar repos al vuelo
 from core.services.BaseService import BaseService
 
 logger = logging.getLogger(__name__)
@@ -37,30 +36,17 @@ def calculate_checksum_and_size(file_path):
 
 
 class DataSetService(BaseService):
+    """
+    Servicio BASE para FormulaHub.
+    Maneja la lógica común para CUALQUIER tipo de dataset (UVL, CNF, SMT, etc.)
+    """
+
     def __init__(self):
         super().__init__(DataSetRepository())
-        self.feature_model_repository = FeatureModelRepository()
+        self.dsdownloadrecord_repository = DSDownloadRecordRepository()
+        self.dsviewrecord_repostory = DSViewRecordRepository()
         self.author_repository = AuthorRepository()
         self.dsmetadata_repository = DSMetaDataRepository()
-        self.fmmetadata_repository = FMMetaDataRepository()
-        self.dsdownloadrecord_repository = DSDownloadRecordRepository()
-        self.hubfiledownloadrecord_repository = HubfileDownloadRecordRepository()
-        self.hubfilerepository = HubfileRepository()
-        self.dsviewrecord_repostory = DSViewRecordRepository()
-        self.hubfileviewrecord_repository = HubfileViewRecordRepository()
-
-    def move_feature_models(self, dataset: DataSet):
-        current_user = AuthenticationService().get_authenticated_user()
-        source_dir = current_user.temp_folder()
-
-        working_dir = os.getenv("WORKING_DIR", "")
-        dest_dir = os.path.join(working_dir, "uploads", f"user_{current_user.id}", f"dataset_{dataset.id}")
-
-        os.makedirs(dest_dir, exist_ok=True)
-
-        for feature_model in dataset.feature_models:
-            uvl_filename = feature_model.fm_meta_data.uvl_filename
-            shutil.move(os.path.join(source_dir, uvl_filename), dest_dir)
 
     def get_synchronized(self, current_user_id: int) -> DataSet:
         return self.repository.get_synchronized(current_user_id)
@@ -77,9 +63,6 @@ class DataSetService(BaseService):
     def count_synchronized_datasets(self):
         return self.repository.count_synchronized_datasets()
 
-    def count_feature_models(self):
-        return self.feature_model_service.count_feature_models()
-
     def count_authors(self) -> int:
         return self.author_repository.count()
 
@@ -92,7 +75,48 @@ class DataSetService(BaseService):
     def total_dataset_views(self) -> int:
         return self.dsviewrecord_repostory.total_dataset_views()
 
-    def create_from_form(self, form, current_user) -> DataSet:
+    def update_dsmetadata(self, id, **kwargs):
+        return self.dsmetadata_repository.update(id, **kwargs)
+
+    def get_uvlhub_doi(self, dataset: DataSet) -> str:
+        domain = os.getenv("DOMAIN", "localhost")
+        return f"http://{domain}/doi/{dataset.ds_meta_data.dataset_doi}"
+
+
+class UVLDataSetService(DataSetService):
+    """
+    Servicio ESPECÍFICO para modelos UVL.
+    Contiene la lógica de FeatureModels, ficheros .uvl y validaciones específicas.
+    """
+
+    def __init__(self):
+        # Inicializamos con un repositorio que apunta a la tabla hija UVLDataSet
+        super().__init__()
+        self.repository = BaseRepository(UVLDataSet)
+        self.feature_model_repository = FeatureModelRepository()
+        self.fmmetadata_repository = FMMetaDataRepository()
+        self.hubfilerepository = HubfileRepository()
+
+    def move_feature_models(self, dataset: UVLDataSet):
+        current_user = AuthenticationService().get_authenticated_user()
+        source_dir = current_user.temp_folder()
+
+        working_dir = os.getenv("WORKING_DIR", "")
+        dest_dir = os.path.join(working_dir, "uploads", f"user_{current_user.id}", f"dataset_{dataset.id}")
+
+        os.makedirs(dest_dir, exist_ok=True)
+
+        for feature_model in dataset.feature_models:
+            uvl_filename = feature_model.fm_meta_data.uvl_filename
+            shutil.move(os.path.join(source_dir, uvl_filename), dest_dir)
+
+    def count_feature_models(self):
+        return self.feature_model_repository.count_feature_models()
+
+    def create_from_form(self, form, current_user) -> UVLDataSet:
+        """
+        Crea un UVLDataSet a partir del formulario específico de UVL.
+        """
         main_author = {
             "name": f"{current_user.profile.surname}, {current_user.profile.name}",
             "affiliation": current_user.profile.affiliation,
@@ -105,15 +129,19 @@ class DataSetService(BaseService):
                 author = self.author_repository.create(commit=False, ds_meta_data_id=dsmetadata.id, **author_data)
                 dsmetadata.authors.append(author)
 
+            # --- CAMBIO IMPORTANTE: Creamos un UVLDataSet, no un DataSet genérico ---
             dataset = self.create(commit=False, user_id=current_user.id, ds_meta_data_id=dsmetadata.id)
+            # -----------------------------------------------------------------------
 
-            for feature_model in form.feature_models:
-                uvl_filename = feature_model.uvl_filename.data
-                fmmetadata = self.fmmetadata_repository.create(commit=False, **feature_model.get_fmmetadata())
-                for author_data in feature_model.get_authors():
+            for feature_model_form in form.feature_models:
+                uvl_filename = feature_model_form.uvl_filename.data
+                fmmetadata = self.fmmetadata_repository.create(commit=False, **feature_model_form.get_fmmetadata())
+
+                for author_data in feature_model_form.get_authors():
                     author = self.author_repository.create(commit=False, fm_meta_data_id=fmmetadata.id, **author_data)
                     fmmetadata.authors.append(author)
 
+                # Aquí se asocia al dataset. Como es un UVLDataSet, la relación 'feature_models' funciona.
                 fm = self.feature_model_repository.create(
                     commit=False, data_set_id=dataset.id, fm_meta_data_id=fmmetadata.id
                 )
@@ -126,23 +154,20 @@ class DataSetService(BaseService):
                     commit=False, name=uvl_filename, checksum=checksum, size=size, feature_model_id=fm.id
                 )
                 fm.files.append(file)
+
             self.repository.session.commit()
+
         except Exception as exc:
             logger.info(f"Exception creating dataset from form...: {exc}")
             self.repository.session.rollback()
             raise exc
+
         return dataset
 
-    def update_dsmetadata(self, id, **kwargs):
-        return self.dsmetadata_repository.update(id, **kwargs)
-
-    def get_uvlhub_doi(self, dataset: DataSet) -> str:
-        domain = os.getenv("DOMAIN", "localhost")
-        return f"http://{domain}/doi/{dataset.ds_meta_data.dataset_doi}"
-
     def create_combined_dataset(self, current_user, title, description, publication_type, tags, source_dataset_ids):
-        """Crea un nuevo dataset combinando modelos de datasets existentes"""
-
+        """
+        Lógica para combinar datasets de UVL existentes.
+        """
         logger.info(f"Creating combined dataset: {title}")
 
         main_author = {
@@ -177,7 +202,7 @@ class DataSetService(BaseService):
             author = self.author_repository.create(commit=False, ds_meta_data_id=dsmetadata.id, **main_author)
             dsmetadata.authors.append(author)
 
-            # Crear el dataset
+            # --- CAMBIO: Crear UVLDataSet ---
             dataset = self.create(commit=False, user_id=current_user.id, ds_meta_data_id=dsmetadata.id)
 
             # Crear directorio para el nuevo dataset
@@ -185,19 +210,23 @@ class DataSetService(BaseService):
             new_dataset_dir = os.path.join(working_dir, "uploads", f"user_{current_user.id}", f"dataset_{dataset.id}")
             os.makedirs(new_dataset_dir, exist_ok=True)
 
-            # Copiar feature models de los datasets seleccionados
+            # Copiar feature models
             feature_models_copied = 0
             for source_dataset_id in source_dataset_ids:
+                # Usamos el repositorio genérico para obtener el dataset fuente (puede ser UVLDataSet)
                 source_dataset = self.get_or_404(source_dataset_id)
 
-                # Obtener directorio del dataset fuente
+                # Verificación de seguridad: ¿Es un dataset de UVL?
+                if not isinstance(source_dataset, UVLDataSet) and source_dataset.dataset_type != "uvl_dataset":
+                    logger.warning(f"Skipping dataset {source_dataset.id} because it is not UVL.")
+                    continue
+
                 source_dataset_dir = os.path.join(
                     working_dir, "uploads", f"user_{source_dataset.user_id}", f"dataset_{source_dataset.id}"
                 )
 
                 for feature_model in source_dataset.feature_models:
-
-                    # Crear nueva metadata para el feature model
+                    # ... (Lógica de copia de metadatos idéntica a la anterior) ...
                     fmmetadata_data = {
                         "uvl_filename": feature_model.fm_meta_data.uvl_filename,
                         "title": feature_model.fm_meta_data.title or feature_model.fm_meta_data.uvl_filename,
@@ -210,7 +239,6 @@ class DataSetService(BaseService):
 
                     fmmetadata = self.fmmetadata_repository.create(commit=False, **fmmetadata_data)
 
-                    # Copiar autores del feature model original
                     for original_author in feature_model.fm_meta_data.authors:
                         author_data = original_author.to_dict()
                         author = self.author_repository.create(
@@ -218,29 +246,19 @@ class DataSetService(BaseService):
                         )
                         fmmetadata.authors.append(author)
 
-                    # Crear el feature model en el nuevo dataset
                     fm = self.feature_model_repository.create(
                         commit=False, data_set_id=dataset.id, fm_meta_data_id=fmmetadata.id
                     )
 
-                    # COPIAR LOS ARCHIVOS uvl
                     files_copied = 0
                     for file in feature_model.files:
-                        # Ruta del archivo original
                         source_file_path = os.path.join(source_dataset_dir, file.name)
-
-                        # Ruta del archivo destino
                         dest_file_path = os.path.join(new_dataset_dir, file.name)
 
-                        # Verificar que el archivo fuente existe
                         if os.path.exists(source_file_path):
-                            # Copiar el archivo
                             shutil.copy2(source_file_path, dest_file_path)
-
-                            # Recalcular checksum y tamaño del archivo copiado
                             new_checksum, new_size = calculate_checksum_and_size(dest_file_path)
 
-                            # Crear registro del archivo con los nuevos datos
                             new_file = self.hubfilerepository.create(
                                 commit=False,
                                 name=file.name,
@@ -256,8 +274,6 @@ class DataSetService(BaseService):
                     feature_models_copied += 1
 
             logger.info(f"Total feature models copied: {feature_models_copied}")
-
-            # Hacer commit final
             self.repository.session.commit()
             return dataset
 
@@ -299,7 +315,6 @@ class DSViewRecordService(BaseService):
         return self.repository.create_new_record(dataset, user_cookie)
 
     def create_cookie(self, dataset: DataSet) -> str:
-
         user_cookie = request.cookies.get("view_cookie")
         if not user_cookie:
             user_cookie = str(uuid.uuid4())
@@ -325,7 +340,6 @@ class DOIMappingService(BaseService):
 
 
 class SizeService:
-
     def __init__(self):
         pass
 

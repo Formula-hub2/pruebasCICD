@@ -23,6 +23,7 @@ from app import db
 from app.modules.dataset import dataset_bp
 from app.modules.dataset.forms import DataSetForm
 from app.modules.dataset.models import DataSet, DSDownloadRecord
+from app.modules.dataset.services import UVLDataSetService  # <--- NUEVO SERVICIO ESPECÍFICO
 from app.modules.dataset.services import (
     AuthorService,
     DataSetService,
@@ -35,7 +36,7 @@ from app.modules.zenodo.services import ZenodoService
 
 logger = logging.getLogger(__name__)
 
-
+# Instanciamos los servicios genéricos (para lecturas, listados, etc.)
 dataset_service = DataSetService()
 author_service = AuthorService()
 dsmetadata_service = DSMetaDataService()
@@ -44,27 +45,51 @@ doi_mapping_service = DOIMappingService()
 ds_view_record_service = DSViewRecordService()
 
 
-@dataset_bp.route("/dataset/upload", methods=["GET", "POST"])
+@dataset_bp.route("/dataset/upload", defaults={"dataset_type": "uvl"}, methods=["GET", "POST"])
+@dataset_bp.route("/dataset/upload/<dataset_type>", methods=["GET", "POST"])
 @login_required
-def create_dataset():
-    form = DataSetForm()
-    if request.method == "POST":
+def create_dataset(dataset_type):
+    """
+    Controlador Polimórfico de Subida.
+    Selecciona el servicio y el formulario adecuado según el tipo de dataset.
+    """
 
+    # 1. FACTORY: Selección de Estrategia
+    if dataset_type == "uvl":
+        service = UVLDataSetService()
+        form = DataSetForm()
+        template = "dataset/upload_dataset.html"
+    # Aquí añadirás tus futuros tipos:
+    # elif dataset_type == "cnf":
+    #     service = CNFDataSetService()
+    #     form = CNFDataSetForm()
+    #     template = "dataset/upload_cnf.html"
+    else:
+        return abort(404, description=f"Dataset type '{dataset_type}' not supported yet.")
+
+    if request.method == "POST":
         dataset = None
 
         if not form.validate_on_submit():
             return jsonify({"message": form.errors}), 400
 
         try:
-            logger.info("Creating dataset...")
-            dataset = dataset_service.create_from_form(form=form, current_user=current_user)
+            logger.info(f"Creating dataset of type {dataset_type}...")
+
+            # 2. DELEGACIÓN: El servicio específico se encarga de la creación
+            dataset = service.create_from_form(form=form, current_user=current_user)
+
             logger.info(f"Created dataset: {dataset}")
-            dataset_service.move_feature_models(dataset)
+
+            # Lógica específica de movimiento de ficheros (Delegada en el servicio)
+            service.move_feature_models(dataset)
+
         except Exception as exc:
             logger.exception(f"Exception while create dataset data in local {exc}")
             return jsonify({"Exception while create dataset data in local: ": str(exc)}), 400
 
-        # send dataset as deposition to Zenodo
+        # 3. SINCRONIZACIÓN ZENODO (Lógica Común)
+        # Nota: Esto asume que Zenodo acepta cualquier tipo de fichero que subamos.
         data = {}
         try:
             zenodo_response_json = zenodo_service.create_new_deposition(dataset)
@@ -82,9 +107,13 @@ def create_dataset():
             dataset_service.update_dsmetadata(dataset.ds_meta_data_id, deposition_id=deposition_id)
 
             try:
-                # iterate for each feature model (one feature model = one request to Zenodo)
-                for feature_model in dataset.feature_models:
-                    zenodo_service.upload_file(dataset, deposition_id, feature_model)
+                # Iterar por los feature models.
+                # OJO: Si en el futuro hay datasets sin feature models, esto habrá que abstraerlo.
+                # Por ahora, como UVL es el único, funciona.
+                # Para el futuro: dataset.get_files_to_upload()
+                if hasattr(dataset, "feature_models"):
+                    for feature_model in dataset.feature_models:
+                        zenodo_service.upload_file(dataset, deposition_id, feature_model)
 
                 # publish deposition
                 zenodo_service.publish_deposition(deposition_id)
@@ -104,12 +133,13 @@ def create_dataset():
         msg = "Everything works!"
         return jsonify({"message": msg}), 200
 
-    return render_template("dataset/upload_dataset.html", form=form)
+    return render_template(template, form=form)
 
 
 @dataset_bp.route("/dataset/list", methods=["GET", "POST"])
 @login_required
 def list_dataset():
+    # Listar usa el servicio genérico porque solo necesitamos metadatos comunes
     return render_template(
         "dataset/list_datasets.html",
         datasets=dataset_service.get_synchronized(current_user.id),
@@ -120,6 +150,11 @@ def list_dataset():
 @dataset_bp.route("/dataset/file/upload", methods=["POST"])
 @login_required
 def upload():
+    """
+    Esta ruta maneja la subida asíncrona (Dropzone) a la carpeta temporal.
+    Por ahora sigue validando .uvl hardcoded.
+    TODO: En el futuro, recibir un parámetro 'type' para validar la extensión dinámicamente.
+    """
     file = request.files["file"]
     temp_folder = current_user.temp_folder()
 
@@ -175,8 +210,10 @@ def delete():
 
 @dataset_bp.route("/dataset/download/<int:dataset_id>", methods=["GET"])
 def download_dataset(dataset_id):
+    # Usamos get_or_404 genérico. SQLalchemy nos devolverá la instancia hija correcta (UVLDataSet)
     dataset = dataset_service.get_or_404(dataset_id)
 
+    # Lógica de contador (Común)
     dataset.download_count = DataSet.download_count + 1
     db.session.commit()
 
@@ -189,9 +226,7 @@ def download_dataset(dataset_id):
         for subdir, dirs, files in os.walk(file_path):
             for file in files:
                 full_path = os.path.join(subdir, file)
-
                 relative_path = os.path.relpath(full_path, file_path)
-
                 zipf.write(
                     full_path,
                     arcname=os.path.join(os.path.basename(zip_path[:-4]), relative_path),
@@ -199,8 +234,7 @@ def download_dataset(dataset_id):
 
     user_cookie = request.cookies.get("download_cookie")
     if not user_cookie:
-        user_cookie = str(uuid.uuid4())  # Generate a new unique identifier if it does not exist
-        # Save the cookie to the user's browser
+        user_cookie = str(uuid.uuid4())
         resp = make_response(
             send_from_directory(
                 temp_dir,
@@ -218,7 +252,7 @@ def download_dataset(dataset_id):
             mimetype="application/zip",
         )
 
-    # Check if the download record already exists for this cookie
+    # Registro de descarga (Común)
     existing_record = DSDownloadRecord.query.filter_by(
         user_id=current_user.id if current_user.is_authenticated else None,
         dataset_id=dataset_id,
@@ -226,7 +260,6 @@ def download_dataset(dataset_id):
     ).first()
 
     if not existing_record:
-        # Record the download in your database
         DSDownloadRecordService().create(
             user_id=current_user.id if current_user.is_authenticated else None,
             dataset_id=dataset_id,
@@ -239,23 +272,17 @@ def download_dataset(dataset_id):
 
 @dataset_bp.route("/doi/<path:doi>/", methods=["GET"])
 def subdomain_index(doi):
-
-    # Check if the DOI is an old DOI
     new_doi = doi_mapping_service.get_new_doi(doi)
     if new_doi:
-        # Redirect to the same path with the new DOI
         return redirect(url_for("dataset.subdomain_index", doi=new_doi), code=302)
 
-    # Try to search the dataset by the provided DOI (which should already be the new one)
     ds_meta_data = dsmetadata_service.filter_by_doi(doi)
 
     if not ds_meta_data:
         abort(404)
 
-    # Get dataset
     dataset = ds_meta_data.data_set
 
-    # Save the cookie to the user's browser
     user_cookie = ds_view_record_service.create_cookie(dataset=dataset)
     resp = make_response(render_template("dataset/view_dataset.html", dataset=dataset))
     resp.set_cookie("view_cookie", user_cookie)
@@ -266,23 +293,15 @@ def subdomain_index(doi):
 @dataset_bp.route("/dataset/unsynchronized/<int:dataset_id>/", methods=["GET"])
 @login_required
 def get_unsynchronized_dataset(dataset_id):
-
-    # Get dataset
     dataset = dataset_service.get_unsynchronized_dataset(current_user.id, dataset_id)
-
     if not dataset:
         abort(404)
-
     return render_template("dataset/view_dataset.html", dataset=dataset)
 
 
 @dataset_bp.route("/dataset/view/<int:dataset_id>", methods=["GET"])
 def view_dataset(dataset_id):
-    """Vista para datasets sin DOI (creados desde el carrito)"""
     dataset = dataset_service.get_or_404(dataset_id)
-
-    # Verificar que el dataset pertenezca al usuario o sea público
     if current_user.is_authenticated and dataset.user_id != current_user.id:
         abort(403)
-
     return render_template("dataset/view_dataset.html", dataset=dataset)

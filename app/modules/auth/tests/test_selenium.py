@@ -5,6 +5,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
+from app import create_app  # <--- IMPORTANTE: Necesitas esto
 from app.modules.auth.repositories import UserRepository
 from core.environment.host import get_host_for_selenium_testing
 from core.selenium.common import close_driver, initialize_driver
@@ -50,8 +51,9 @@ def test_login_and_check_element():
         close_driver(driver)
 
 
+# VUELVE A EJECUTAR LA MISMA FUNCION
 # Call the test function
-test_login_and_check_element()
+# test_login_and_check_element()
 
 
 def test_login_with_2fa_selenium():
@@ -77,9 +79,19 @@ def test_login_with_2fa_selenium():
         # Ahora debería redirigir a /verify_2fa
         assert "/verify_2fa" in driver.current_url
 
+        # --- AQUÍ ESTÁ EL CAMBIO ---
+        # Creamos una instancia de la app solo para consultar la DB
+        flask_app = create_app()
+
+        # Entramos en el contexto de la aplicación
+        with flask_app.app_context():
+            user = UserRepository().get_by_email("user1@example.com")
+            # Guardamos el secreto en una variable de texto para usarla fuera
+            secret = user.two_factor_secret
+        # --- FIN DEL CAMBIO ---
+
         # Obtener token TOTP desde la base de datos
-        user = UserRepository().get_by_email("user1@example.com")
-        totp = pyotp.TOTP(user.two_factor_secret).now()
+        totp = pyotp.TOTP(secret).now()
 
         # Ingresar token en el formulario
         token_field = driver.find_element(By.NAME, "token")
@@ -88,8 +100,13 @@ def test_login_with_2fa_selenium():
         time.sleep(2)
 
         # Comprobar que se redirige a la página principal
-        if "index" not in driver.current_url:
-            raise AssertionError("2FA verification failed!")
+        try:
+
+            driver.find_element(By.XPATH, "//h1[contains(@class, 'h2 mb-3') and contains(., 'Latest datasets')]")
+            print("Test passed!")
+
+        except NoSuchElementException:
+            raise AssertionError("Test failed!")
 
     finally:
         close_driver(driver)

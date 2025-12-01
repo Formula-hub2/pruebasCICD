@@ -1,6 +1,9 @@
 from flask import flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_user, logout_user
 
+# Necesario para el locust test de 2FA
+from flask_wtf.csrf import generate_csrf
+
 from app.modules.auth import auth_bp
 from app.modules.auth.forms import LoginForm, SignupForm
 from app.modules.auth.models import User
@@ -90,7 +93,7 @@ def verify_2fa():
             return redirect(url_for("public.index"))
         flash("Código 2FA inválido")
 
-    return render_template("auth/verify_2fa.html")
+    return render_template("auth/verify_2fa.html", csrf_token=generate_csrf)
 
 
 @auth_bp.route("/logout")

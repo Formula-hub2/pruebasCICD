@@ -14,8 +14,7 @@ from core.selenium.common import close_driver, initialize_driver
 def wait_for_page_to_load(driver, timeout=4):
     try:
         WebDriverWait(driver, timeout).until(
-            lambda driver: driver.execute_script("return document.readyState")
-            == "complete"
+            lambda driver: driver.execute_script("return document.readyState") == "complete"
         )
     except TimeoutException:
         pass
@@ -78,12 +77,8 @@ def test_full_lifecycle():
 
         # Archivos
         base_path = os.getcwd()
-        file1_path = os.path.join(
-            base_path, "app/modules/dataset/uvl_examples/file1.uvl"
-        )
-        file2_path = os.path.join(
-            base_path, "app/modules/dataset/uvl_examples/file2.uvl"
-        )
+        file1_path = os.path.join(base_path, "app/modules/dataset/uvl_examples/file1.uvl")
+        file2_path = os.path.join(base_path, "app/modules/dataset/uvl_examples/file2.uvl")
 
         if not os.path.exists(file1_path):
             raise Exception(f"CRÍTICO: No encuentro archivo en {file1_path}")
@@ -121,9 +116,7 @@ def test_full_lifecycle():
 
         wait.until(EC.url_to_be(f"{host}/dataset/list"))
         final_datasets = count_datasets(driver, host)
-        assert final_datasets == initial_datasets + 1, (
-            "El dataset no aparece en la lista tras subirlo."
-        )
+        assert final_datasets == initial_datasets + 1, "El dataset no aparece en la lista tras subirlo."
 
         # -----------------------------------------------------------------------
         # FASE 3: NAVEGACIÓN (ENCONTRAR EL DATASET)
@@ -142,9 +135,7 @@ def test_full_lifecycle():
 
         except NoSuchElementException:
             print("DEBUG HTML: ", driver.page_source[:1000])
-            raise Exception(
-                f"No encontré la fila con el título '{dataset_title}' o el botón de ver."
-            )
+            raise Exception(f"No encontré la fila con el título '{dataset_title}' o el botón de ver.")
 
         # -----------------------------------------------------------------------
         # FASE 3.5: VERIFICACIÓN DE RENDERIZADO POLIMÓRFICO
@@ -155,9 +146,7 @@ def test_full_lifecycle():
             # Esperamos explícitamente a que el elemento del include se cargue
             # Buscamos el h4 que dice "UVL models"
             uvl_header = wait.until(
-                EC.visibility_of_element_located(
-                    (By.XPATH, "//h4[contains(text(), 'UVL models')]")
-                )
+                EC.visibility_of_element_located((By.XPATH, "//h4[contains(text(), 'UVL models')]"))
             )
 
             # Si llegamos aquí, el elemento existe y es visible
@@ -169,9 +158,7 @@ def test_full_lifecycle():
             # Imprimimos parte del body para ver qué se ha renderizado realmente
             print(
                 "DEBUG BODY: ",
-                driver.find_element(By.TAG_NAME, "body").get_attribute("innerHTML")[
-                    :1000
-                ],
+                driver.find_element(By.TAG_NAME, "body").get_attribute("innerHTML")[:1000],
             )
             raise Exception("FALLO DE INTERFAZ: No se cargó 'uvl_details.html'.")
 
@@ -185,31 +172,23 @@ def test_full_lifecycle():
             initial_count = int(initial_count_elem.text.strip())
             print(f"   -> Contador inicial: {initial_count}")
         except Exception:
-            raise Exception(
-                "No encuentro el ID 'download_count_text'. Revisa view_dataset.html"
-            )
+            raise Exception("No encuentro el ID 'download_count_text'. Revisa view_dataset.html")
 
         download_btn = driver.find_element(By.ID, "download_btn")
         download_btn.click()
         time.sleep(1.5)
 
         new_count = int(driver.find_element(By.ID, "download_count_text").text.strip())
-        assert new_count == initial_count + 1, (
-            f"JS Falló: {initial_count} -> {new_count}"
-        )
+        assert new_count == initial_count + 1, f"JS Falló: {initial_count} -> {new_count}"
         print("   -> JS Frontend: OK")
 
         driver.refresh()
         wait_for_page_to_load(driver)
 
-        db_count_elem = wait.until(
-            EC.visibility_of_element_located((By.ID, "download_count_text"))
-        )
+        db_count_elem = wait.until(EC.visibility_of_element_located((By.ID, "download_count_text")))
         db_count = int(db_count_elem.text.strip())
 
-        assert db_count == initial_count + 1, (
-            f"BD Falló: Esperaba {initial_count + 1}, tengo {db_count}"
-        )
+        assert db_count == initial_count + 1, f"BD Falló: Esperaba {initial_count + 1}, tengo {db_count}"
         print("   -> BD Backend: OK")
 
         print(">>> ✅ TEST COMPLETADO CON ÉXITO")

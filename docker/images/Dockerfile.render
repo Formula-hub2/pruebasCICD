@@ -47,6 +47,12 @@ RUN apt-get update && apt-get install -y git
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
 
+RUN flask db downgrade
+
+RUN flask db upgrade
+
+RUN rosemary db:seed
+
 # Expose port 80
 EXPOSE 80
 

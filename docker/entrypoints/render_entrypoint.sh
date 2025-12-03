@@ -51,14 +51,6 @@ else
     flask db upgrade
 fi
 
-
-if command -v rosemary &> /dev/null; then
-    rosemary db:seed
-else
-    echo "⚠️ Comando 'rosemary' no encontrado en el PATH. Probando como módulo..."
-    python -m rosemary db:seed
-fi
-
 # Start the application using Gunicorn, binding it to port 80
 # Set the logging level to info and the timeout to 3600 seconds
 exec gunicorn --bind 0.0.0.0:80 app:app --log-level info --timeout 3600

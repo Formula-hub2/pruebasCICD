@@ -163,7 +163,7 @@ var currentId = 0;
                     formUploadData.append('csrf_token', csrfToken);
 
                     for (let key in formData) {
-                        if (formData.hasOwnProperty(key)) {
+                        if (Object.prototype.hasOwnProperty.call(formData, key)) {
                             formUploadData.set(key, formData[key]);
                         }
                     }

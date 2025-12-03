@@ -33,7 +33,9 @@ def clean_dataset_setup(test_client):
     db.session.commit()
 
     # 3. Crear el DataSet inicializado a 0
-    dataset = DataSet(user_id=user.id, ds_meta_data_id=meta.id, download_count=0)  # Forzamos 0 explícitamente
+    dataset = DataSet(
+        user_id=user.id, ds_meta_data_id=meta.id, download_count=0
+    )  # Forzamos 0 explícitamente
     db.session.add(dataset)
     db.session.commit()
 
@@ -76,7 +78,9 @@ def test_download_counter_backend_logic(test_client, clean_dataset_setup):
     # 1. VERIFICACIÓN PREVIA
     # Recuperamos el dataset fresco de la BD
     dataset_before = DataSet.query.get(dataset_id)
-    assert dataset_before.download_count == 0, "El dataset debería nacer con 0 descargas"
+    assert dataset_before.download_count == 0, (
+        "El dataset debería nacer con 0 descargas"
+    )
 
     # 2. EJECUCIÓN (Simulamos la petición HTTP)
     # Nota: Es probable que esto devuelva 500 o error si no existen los archivos físicos .uvl
@@ -85,9 +89,8 @@ def test_download_counter_backend_logic(test_client, clean_dataset_setup):
     # Por tanto, aunque falle la descarga del archivo, el contador debe subir.
     try:
         test_client.get(f"/dataset/download/{dataset_id}")
-    except Exception:
-        # Ignoramos errores de "File Not Found" o ZipFile, solo nos importa SQL
-        pass
+    except Exception as e:
+        print(f"Error: {e}")
 
     # 3. MAGIA DE SQLALCHEMY (IMPORTANTE)
     # "Caducamos" la sesión actual. Esto obliga a SQLAlchemy a olvidar los datos
@@ -100,6 +103,6 @@ def test_download_counter_backend_logic(test_client, clean_dataset_setup):
 
     print(f"Descargas antes: 0 | Descargas después: {dataset_after.download_count}")
 
-    assert (
-        dataset_after.download_count == 1
-    ), f"Fallo crítico: El contador es {dataset_after.download_count}, debería ser 1."
+    assert dataset_after.download_count == 1, (
+        f"Fallo crítico: El contador es {dataset_after.download_count}, debería ser 1."
+    )

@@ -22,9 +22,8 @@ jobs:
           WEBHOOK_DOMAIN: ${{ secrets.WEBHOOK_DOMAIN }}
           WEBHOOK_TOKEN: ${{ secrets.WEBHOOK_TOKEN }}
         run: |
-          curl -X POST \
-            https://${{ secrets.WEBHOOK_DOMAIN }}/webhook/deploy \
-            -H "Authorization: Bearer ${{ secrets.WEBHOOK_TOKEN }}"
+          curl -X POST "${{ secrets.WEBHOOK_DOMAIN }}"
+          -H "Authorization: Bearer ${{ secrets.WEBHOOK_TOKEN }}"
 
       # 2. Notificar ÉXITO a Discord
       - name: Discord Notification - Success

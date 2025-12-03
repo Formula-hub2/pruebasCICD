@@ -49,7 +49,14 @@ else
 
     # Run the migration process to apply all database schema changes
     flask db upgrade
+fi
+
+
+if command -v rosemary &> /dev/null; then
     rosemary db:seed
+else
+    echo "⚠️ Comando 'rosemary' no encontrado en el PATH. Probando como módulo..."
+    python -m rosemary db:seed
 fi
 
 # Start the application using Gunicorn, binding it to port 80

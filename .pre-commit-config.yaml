@@ -1,38 +1,45 @@
-# .pre-commit-config.yaml
 repos:
-  # 1. Comprobaciones básicas y rápidas
+  # 1. Comprobaciones básicas y de limpieza
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: v4.5.0
     hooks:
-      - id: trailing-whitespace        # Borra espacios al final de las líneas
-      - id: end-of-file-fixer          # Asegura que haya una línea en blanco al final
-      - id: check-yaml                 # Verifica sintaxis YAML (útil para tus workflows)
-      - id: check-added-large-files    # Evita subir archivos gigantes por error
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
 
   # 2. Formato de código (Black)
   - repo: https://github.com/psf/black
-    rev: 25.11.0
+    rev: 24.2.0
     hooks:
       - id: black
-        args: ["--target-version", "py312"]
+        language_version: python3.12
 
   # 3. Ordenar importaciones (Isort)
   - repo: https://github.com/pycqa/isort
-    rev: 7.0.0
+    rev: 5.13.2
     hooks:
       - id: isort
         args: ["--profile", "black"]
 
   # 4. Linting (Flake8)
   - repo: https://github.com/pycqa/flake8
-    rev: 7.3.0
+    rev: 7.0.0
     hooks:
       - id: flake8
-        args: ["--max-line-length=120", "--ignore=E203,E501,W503"]
+        args: ["--max-line-length=88", "--ignore=E203,E501,W503"]
 
-  # 5. Validar mensajes de Commit (Conventional Commits)
+  # 5. Seguridad (Bandit)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.7
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml"]
+        exclude: ^tests/|test_.*.py
+
+  # 6. Validar mensajes de Commit
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.3.0
+    rev: v3.1.0
     hooks:
       - id: conventional-pre-commit
-        stages: [commit-msg] # Este solo salta al escribir el mensaje
+        stages: [commit-msg]

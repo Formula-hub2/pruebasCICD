@@ -35,6 +35,12 @@ if [ $(mariadb -u $MARIADB_USER -p$MARIADB_PASSWORD -h $MARIADB_HOSTNAME -P $MAR
     # Run the migration process to apply all database schema changes
     flask db upgrade
 
+    if command -v rosemary &> /dev/null; then
+        rosemary db:seed -y
+    else
+        echo "⚠️ Comando CLI 'rosemary' no detectado. Ejecutando vía módulo Python..."
+        python -m rosemary db:seed -y
+    fi
 else
 
     echo "Database already initialized, updating migrations..."
@@ -50,6 +56,7 @@ else
     # Run the migration process to apply all database schema changes
     flask db upgrade
 fi
+
 
 # Start the application using Gunicorn, binding it to port 80
 # Set the logging level to info and the timeout to 3600 seconds

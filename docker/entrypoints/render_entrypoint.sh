@@ -40,6 +40,7 @@ if [ $(mariadb -u $MARIADB_USER -p$MARIADB_PASSWORD -h $MARIADB_HOSTNAME -P $MAR
     else
         echo "⚠️ Comando CLI 'rosemary' no detectado. Ejecutando vía módulo Python..."
         python -m rosemary db:seed -y
+        
     fi
 else
 
@@ -55,6 +56,14 @@ else
 
     # Run the migration process to apply all database schema changes
     flask db upgrade
+
+    if command -v rosemary &> /dev/null; then
+        rosemary db:seed -y
+    else
+        echo "⚠️ Comando CLI 'rosemary' no detectado. Ejecutando vía módulo Python..."
+        python -m rosemary db:seed -y
+        
+    fi
 fi
 
 

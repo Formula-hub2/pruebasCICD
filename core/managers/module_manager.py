@@ -29,7 +29,6 @@ class ModuleManager:
         self.app.blueprint_url_prefixes = {}
 
         for module_name in os.listdir(self.modules_dir):
-
             if module_name in self.ignored_modules:
                 continue
 

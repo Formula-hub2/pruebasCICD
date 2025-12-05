@@ -8,14 +8,7 @@ from typing import Optional
 from flask import request
 
 from app.modules.auth.services import AuthenticationService
-from app.modules.dataset.models import (
-    DataSet,
-    DSMetaData,
-    DSViewRecord,
-    PublicationType,
-    RawDataSet,
-    UVLDataSet,
-)
+from app.modules.dataset.models import DataSet, DSMetaData, DSViewRecord, PublicationType, RawDataSet, UVLDataSet
 from app.modules.dataset.repositories import (
     AuthorRepository,
     DataSetRepository,
@@ -24,13 +17,8 @@ from app.modules.dataset.repositories import (
     DSMetaDataRepository,
     DSViewRecordRepository,
 )
-from app.modules.featuremodel.repositories import (
-    FeatureModelRepository,
-    FMMetaDataRepository,
-)
-from app.modules.hubfile.repositories import (
-    HubfileRepository,
-)
+from app.modules.featuremodel.repositories import FeatureModelRepository, FMMetaDataRepository
+from app.modules.hubfile.repositories import HubfileRepository
 from core.repositories.BaseRepository import BaseRepository
 from core.services.BaseService import BaseService
 

@@ -13,7 +13,7 @@ echo "🔄 Ejecutando migraciones..."
 flask db upgrade
 
 # 3. Poblar la base de datos (Semillas)
-# OJO: Asegúrate de que tu comando 'db:seed' sea idempotente 
+# OJO: Asegúrate de que tu comando 'db:seed' sea idempotente
 # (que no duplique datos si se ejecuta dos veces)
 echo "🌱 Ejecutando semillas..."
 rosemary db:seed

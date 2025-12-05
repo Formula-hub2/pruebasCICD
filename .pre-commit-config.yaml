@@ -1,0 +1,38 @@
+# .pre-commit-config.yaml
+repos:
+  # 1. Comprobaciones básicas y rápidas
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace        # Borra espacios al final de las líneas
+      - id: end-of-file-fixer          # Asegura que haya una línea en blanco al final
+      - id: check-yaml                 # Verifica sintaxis YAML (útil para tus workflows)
+      - id: check-added-large-files    # Evita subir archivos gigantes por error
+
+  # 2. Formato de código (Black) - Coincide con tu CI_lint.yml
+  - repo: https://github.com/psf/black
+    rev: 25.11.0  # Intenta usar una versión similar a tu entorno
+    hooks:
+      - id: black
+        args: ["--target-version", "py312"]
+
+  # 3. Ordenar importaciones (Isort)
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  # 4. Linting (Flake8) - Coincide con tu CI_lint.yml
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        args: ["--max-line-length=120", "--ignore=E203,E501,W503"]
+
+  # 5. Validar mensajes de Commit (Conventional Commits) - Coincide con CI_commits.yml
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.3.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg] # Este solo salta al escribir el mensaje
